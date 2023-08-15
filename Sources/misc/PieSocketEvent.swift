@@ -44,7 +44,7 @@ public class PieSocketEvent: Codable{
     }
 
     public func toString() -> String{
-        return "{\"event\":\""+self.getEvent()+"\", \"data\":\""+self.getData()+"\", \"meta\":\""+self.getMeta()+"\"}"
+        return "{\"event\":\""+self.getEvent()+"\", \"data\":"+self.getData()+", \"meta\":\""+self.getMeta()+"\"}"
     }
     
 }

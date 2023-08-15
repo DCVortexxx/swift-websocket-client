@@ -5,14 +5,18 @@
 //  Created by Anand Singh on 18/11/22.
 //
 import Foundation
-import Starscream
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+import WebSocketKit
+import NIO
 
 public class Channel{
     
     private static var NORMAL_CLOSURE_STATUS: UInt16 = 1000
 
     private var id: String
-    private var ws: WebSocket?
+//    private var ws: WebSocket?
     private var uuid: String
     
     private var listeners: [String: [String: (PieSocketEvent)->Void]]
@@ -21,10 +25,12 @@ public class Channel{
     private var members: [AnyObject?]
     private var shouldReconnect: Bool
 
-    
+    private var ws: WebSocket?
+    private var eventLoopGroup: EventLoopGroup
+
     
     public init(roomId: String, options: PieSocketOptions, logger: Logger){
-
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         self.listeners = [String: [String: (PieSocketEvent)->Void]]()
         self.id = roomId
         self.logger = logger
@@ -37,7 +43,7 @@ public class Channel{
     }
     
     public init(webSocketURL: String, enabledLogs: Bool){
-        
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
         self.listeners = [String: [String: (PieSocketEvent)->Void]]()
         self.id = "standalone"
         self.logger = Logger(enabled: enabledLogs)
@@ -50,6 +56,10 @@ public class Channel{
         self.members = [AnyObject?]()
 
         try! self.connect()
+    }
+
+    deinit {
+        try! eventLoopGroup.syncShutdownGracefully()
     }
     
     private func isGuarded() -> Bool {
@@ -68,29 +78,49 @@ public class Channel{
             
             logger.log(text: "WebSocket Endpoint: "+(endpoint));
         
-            var request = URLRequest(url: URL(string: endpoint)!)
-            request.timeoutInterval = 5
-            ws = WebSocket(request: request)
-            ws?.connect()
-            ws?.onEvent = { event in
-                switch event {
-                    case .connected(_):
-                        self.onOpen()
-                    case .disconnected(let reason, let code):
+//            var request = URLRequest(url: URL(string: endpoint)!)
+//            request.timeoutInterval = 5
+
+            WebSocket.connect( // TODO: Maxime: Should use return ???
+                to: endpoint,
+                on: eventLoopGroup,
+                onUpgrade: { self.ws = $0 }
+            )
+            .whenComplete { result in
+                self.onOpen()
+                self.ws?.onClose.whenComplete { r in
+                    switch r {
+                    case .success:
                         self.onClosing()
-                    case .text(let text):
-                        self.onMessage(text: text)
-                    case .cancelled:
-                        self.onClosing()
-                    case .error(let error):
-                        self.onError(error: error!)
-                    case .binary(_): break
-                    case .pong(_): break
-                    case .ping(_): break
-                    case .viabilityChanged(_): break
-                    case .reconnectSuggested(_): break
+                    case .failure(let error):
+                        self.onError(error: error)
+                    }
+                }
+                self.ws?.onText { _, text in
+                    self.onMessage(text: text)
                 }
             }
+//            ws = WebSocket(request: request)
+//            ws?.connect()
+//            ws?.onEvent = { event in
+//                switch event {
+//                    case .connected(_):
+//                        self.onOpen()
+//                    case .disconnected(let reason, let code):
+//                        self.onClosing()
+//                    case .text(let text):
+//                        self.onMessage(text: text)
+//                    case .cancelled:
+//                        self.onClosing()
+//                    case .error(let error):
+//                        self.onError(error: error!)
+//                    case .binary(_): break
+//                    case .pong(_): break
+//                    case .ping(_): break
+//                    case .viabilityChanged(_): break
+//                    case .reconnectSuggested(_): break
+//                }
+//            }
         }catch PieSocketException.PausedForFetchingJwt{
             logger.log(text: "JWT not provided, will fetch from authEndpoint.")
         }catch PieSocketException.NeitherJwtNorAuthEndpointFound{
@@ -124,11 +154,13 @@ public class Channel{
     }
     
     public func publish(event: PieSocketEvent){
-        self.ws?.write(string: event.toString())
+        self.ws?.send(event.toString())
+//        self.ws?.write(string: event.toString())
     }
 
     public func send(text: String){
-        self.ws?.write(string: text)
+        self.ws?.send(text)
+//        self.ws?.write(string: text)
     }
 
     
@@ -252,7 +284,8 @@ public class Channel{
         
     public func disconnect(){
         self.shouldReconnect = false
-        self.ws?.disconnect(closeCode: Channel.NORMAL_CLOSURE_STATUS)
+        _ = self.ws?.close(code: .normalClosure) // TODO: Max: Should I use the promise?
+//        self.ws?.disconnect(closeCode: Channel.NORMAL_CLOSURE_STATUS)
     }
     
     private func fireEvent(event: PieSocketEvent){
@@ -278,8 +311,10 @@ public class Channel{
     public func getMemberByUUID(uuid: String) -> AnyObject?{
         var res: AnyObject?
         self.members.forEach{ member in
-            if(member?["uuid"] as! String == uuid){
-                res = member
+            if let mmember = member as? [String: AnyObject] {
+                if let muuid = mmember["uuid"] as? String, muuid == uuid {
+                    res = member
+                }
             }
         }
         return res
