@@ -58,8 +58,19 @@ public class Channel{
         try! self.connect()
     }
 
+    public init(forTestPurposes: Bool) {
+        self.eventLoopGroup = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
+        self.listeners = [String: [String: (PieSocketEvent)->Void]]()
+        self.id = "standalone"
+        self.logger = Logger(enabled: false)
+        self.options = PieSocketOptions()
+        self.uuid = UUID().uuidString
+        self.shouldReconnect = false
+        self.members = [AnyObject?]()
+    }
+
     deinit {
-        try! eventLoopGroup.syncShutdownGracefully()
+        try? eventLoopGroup.syncShutdownGracefully()
     }
     
     private func isGuarded() -> Bool {

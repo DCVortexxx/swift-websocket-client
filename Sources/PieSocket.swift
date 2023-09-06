@@ -33,7 +33,11 @@ public class PieSocket {
         
     }
     
-    public func join(roomId: String) -> Channel {
+    public func join(roomId: String, forTestPurposes: Bool = false) -> Channel {
+        if forTestPurposes {
+            return Channel(forTestPurposes: true)
+        }
+
         if(self.rooms.keys.contains(roomId)){
             logger.log(text: "Returning existing room instance: "+roomId)
             return self.rooms[roomId]!
