@@ -95,20 +95,20 @@ public class Channel{
             WebSocket.connect( // TODO: Maxime: Should use return ???
                 to: endpoint,
                 on: eventLoopGroup,
-                onUpgrade: { self.ws = $0 }
+                onUpgrade: { [weak self] in self?.ws = $0 }
             )
-            .whenComplete { result in
-                self.onOpen()
-                self.ws?.onClose.whenComplete { r in
+            .whenComplete { [weak self] result in
+                self?.onOpen()
+                self?.ws?.onClose.whenComplete { [weak self] r in
                     switch r {
                     case .success:
-                        self.onClosing()
+                        self?.onClosing()
                     case .failure(let error):
-                        self.onError(error: error)
+                        self?.onError(error: error)
                     }
                 }
-                self.ws?.onText { _, text in
-                    self.onMessage(text: text)
+                self?.ws?.onText { _, text in
+                    self?.onMessage(text: text)
                 }
             }
 //            ws = WebSocket(request: request)
