@@ -96,7 +96,7 @@ public class PieSocketOptions{
         return self.enableLogs = enableLogs
     }
 
-    func setNotifySelf(notifySelf: Bool) {
+    public func setNotifySelf(notifySelf: Bool) {
         return self.notifySelf = notifySelf
     }
 
