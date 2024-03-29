@@ -99,16 +99,18 @@ public class Channel{
             )
             .whenComplete { [weak self] result in
                 self?.onOpen()
-                self?.ws?.onClose.whenComplete { [weak self] r in
-                    switch r {
-                    case .success:
-                        self?.onClosing()
-                    case .failure(let error):
-                        self?.onError(error: error)
+                self?.ws?.eventLoop.execute { [weak self] in
+                    self?.ws?.onClose.whenComplete { [weak self] r in
+                        switch r {
+                        case .success:
+                            self?.onClosing()
+                        case .failure(let error):
+                            self?.onError(error: error)
+                        }
                     }
-                }
-                self?.ws?.onText { _, text in
-                    self?.onMessage(text: text)
+                    self?.ws?.onText { [weak self] _, text in
+                        self?.onMessage(text: text)
+                    }
                 }
             }
 //            ws = WebSocket(request: request)
